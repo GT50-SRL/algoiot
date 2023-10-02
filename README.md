@@ -1,2 +1,2 @@
 # algoiot
-Algorand IOT tools and microSDK
+Algorand IoT tools and microSDK
