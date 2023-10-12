@@ -2,7 +2,7 @@
 // minimal messagepack builder straight from the specs at https://github.com/msgpack/msgpack/blob/master/spec.md
 // W.I.P. use with care
 // In C because we need it on C-only platforms too
-// v20231009-1
+// v20231012-1
 
 // TODO test floats and signed ints
 
@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "minmpk.h"
 
 
@@ -160,6 +161,84 @@ int msgpackAddShortString(msgPack mPack, const char* string)
   }
   mPack->currentMsgLen += len + 1;
   
+  return 0;
+}
+
+
+int msgpackAddUInt7(msgPack mPack, const uint8_t value)
+{
+  if (mPack == NULL)
+  {
+    return MPK_ERR_NULL_MPACK;
+  }
+  if (mPack->msgBuffer == NULL)
+  {
+    return MPK_ERR_NULL_INTERNAL_BUFFER;
+  }
+  if (mPack->currentPosition + 1 >= mPack->bufferLen)
+  {
+    return MPK_ERR_BUFFER_TOO_SHORT;
+  }
+
+  // We use "positive fixint" encoding https://github.com/msgpack/msgpack/blob/master/spec.md#int-format-family
+  mPack->msgBuffer[mPack->currentPosition++] = value & 0x7F;
+
+  mPack->currentMsgLen += 1;
+
+  return 0;
+}
+
+
+int msgpackAddInt8(msgPack mPack, const int8_t value)
+{
+  const uint8_t specifier = 0xD0;
+
+  if (mPack == NULL)
+  {
+    return MPK_ERR_NULL_MPACK;
+  }
+  if (mPack->msgBuffer == NULL)
+  {
+    return MPK_ERR_NULL_INTERNAL_BUFFER;
+  }
+  if (mPack->currentPosition + 2 >= mPack->bufferLen)
+  {
+    return MPK_ERR_BUFFER_TOO_SHORT;
+  }
+
+  // We use "int 8" encoding https://github.com/msgpack/msgpack/blob/master/spec.md#int-format-family
+  mPack->msgBuffer[mPack->currentPosition++] = specifier;
+  mPack->msgBuffer[mPack->currentPosition++] = value;
+
+  mPack->currentMsgLen += 2;
+
+  return 0;
+}
+
+
+int msgpackAddUInt8(msgPack mPack, const uint8_t value)
+{
+  const uint8_t specifier = 0xCC;
+
+  if (mPack == NULL)
+  {
+    return MPK_ERR_NULL_MPACK;
+  }
+  if (mPack->msgBuffer == NULL)
+  {
+    return MPK_ERR_NULL_INTERNAL_BUFFER;
+  }
+  if (mPack->currentPosition + 2 >= mPack->bufferLen)
+  {
+    return MPK_ERR_BUFFER_TOO_SHORT;
+  }
+
+  // We use "uint 8" encoding https://github.com/msgpack/msgpack/blob/master/spec.md#int-format-family
+  mPack->msgBuffer[mPack->currentPosition++] = specifier;
+  mPack->msgBuffer[mPack->currentPosition++] = value;
+
+  mPack->currentMsgLen += 2;
+
   return 0;
 }
 

@@ -1,6 +1,9 @@
 // minmpk.h
 // header for minimal messagepack builder
-// v20231004-2
+// v20231012-2
+
+// TODO:
+//  Add more types
 
 // By Fernando Carello for GT50
 // Released under MIT license:
@@ -61,6 +64,15 @@ int msgpackAddShortMap(msgPack mPack, const uint8_t fields);
 // Up to 31 single-byte chars (32 including trailing NULL, which will *not* be encoded)
 // Returns error code (0 = OK)
 int msgpackAddShortString(msgPack mPack, const char* string);
+
+// Returns error code (0 = OK)
+int msgpackAddUInt7(msgPack mPack, const uint8_t value);
+
+// Returns error code (0 = OK)
+int msgpackAddInt8(msgPack mPack, const int8_t value);
+
+// Returns error code (0 = OK)
+int msgpackAddUInt8(msgPack mPack, const uint8_t value);
 
 // Returns error code (0 = OK)
 int msgpackAddInt16(msgPack mPack, const int16_t value);
