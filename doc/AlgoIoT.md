@@ -1,6 +1,6 @@
 ﻿Smart sensor data notarization with Algorand: AlgoIoT
 
-v20231009-1
+v20231012-2
 
 # **Table of Contents**
 [Brief	1](#_toc147413808)
@@ -42,10 +42,10 @@ Our proposal is to add blockchain-based (Algorand-based, specifically) sensors d
 
 Since we are targeting lightweight devices (microcontroller-class), it is of paramount importance to keep the inevitable overhead, in terms of wakeup time, computing resources, memory footprint, firmware size, to a minimum. At the same time, in order to obtain the required level of trust, we are convinced that the Algorand transaction should originate from the smart sensor itself, without resorting to an intermediate service gateway. This means the MicroController Unit has to manage the Algorand account (keys) itself; it also means the Ed25519 signature has to be processed onboard and that the smart sensor node has to communicate with the Algorand “*algod*” service directly, via its REST API.
 
-![](Aspose.Words.a0012b56-98b6-4957-8215-66ec4053358c.001.png)
+![](Aspose.Words.07f219bb-4530-4cd8-a51d-9b1fe3d47ea2.001.png)
 
 
-![](Aspose.Words.a0012b56-98b6-4957-8215-66ec4053358c.002.png)
+![](Aspose.Words.07f219bb-4530-4cd8-a51d-9b1fe3d47ea2.002.png)
 #
 
 # <a name="_toc147413810"></a>Target device
@@ -58,11 +58,11 @@ Being the best seller in its class would be a compelling argument in itself; add
 For our project, we used the ESP32-PICO-D4 via UM TinyPICO<sup>3</sup> development board:
 
 - Dual-core 32 bit RISC CPU at 240 MHz (Xtensa LX6)
-- 520 KB RAM
+- 520 KB total RAM
 - 4 MB flash memory
 - 2.4 GHz WiFi 802.11 b/g/n
 
-Despite having selected the ESP32 as our target device, our code should be easy to adapt to different MCU platforms, especially those compatible with the Arduino development environment; the RAM footprint is about 48 KB, but this includes the Arduino-ESP32 overhead.
+Despite having selected the ESP32 as our target device, our code should be easy to adapt to different MCU platforms, especially those compatible with the Arduino development environment; the RAM footprint is about 57 KB, including the Arduino-ESP32 overhead.
 
 # <a name="_toc147413811"></a>Software resources (SDKs etc.)
 Software applications (firmware) for the ESP32 family of microcontrollers may be developed with the well-known Arduino IDE, thanks to the official open source Arduino-ESP32 “core” (tools + hardware abstraction layer)<sup>4</sup>.
