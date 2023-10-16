@@ -3,7 +3,7 @@
  * 
  *  Algorand client for ESP32 (and other MCUs)
  * 
- *  Last mod 20231012-2
+ *  Last mod 20231015-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -390,7 +390,7 @@ void loop()
                   DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
                   DEBUG_SERIAL.print(g_transactionID);
                   DEBUG_SERIAL.println(" ***\n");
-                  DEBUG_SERIAL.printf("Total wakeup time = %u\n\n", millis() - currentMillis);
+                  // DEBUG_SERIAL.printf("Total wakeup time = %u\n\n", millis() - currentMillis);
                   #endif
                 }
                 else
@@ -633,11 +633,7 @@ int getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
 
   // configure server and url               
   g_httpClient.begin(httpRequest);
-  
-  #ifdef SERIAL_DEBUGMODE
-  DEBUG_SERIAL.print("Sending: "); DEBUG_SERIAL.println(httpRequest);
-  #endif
-  
+    
   int httpResponseCode = g_httpClient.GET();
 
       
@@ -1292,13 +1288,10 @@ int submitTransaction(const msgPack mPack)
 {
   String httpRequest = g_httpBaseURL + POST_TRANSACTION;
           
-  // configure server and url               
+  // Configure server and url               
   g_httpClient.begin(httpRequest);
   
-  #ifdef SERIAL_DEBUGMODE
-  DEBUG_SERIAL.print("\nPOSTing to: "); DEBUG_SERIAL.println(httpRequest);
-  #endif
-  
+  // Configure MIME type
   g_httpClient.addHeader("Content-Type", POST_MIME_TYPE);
   int httpResponseCode = g_httpClient.POST(mPack->msgBuffer, mPack->currentMsgLen);
       

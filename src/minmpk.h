@@ -42,6 +42,7 @@ typedef struct mpkStruct
 typedef mpkStruct* msgPack;
 // End typedefs
 
+// MessagePack functions. Not all types are implemented yet
 
 // To be called only once for each MessagePack
 // Buffer (static or dynamic) has to be passed by caller, and then freed by caller if appropriate. Needs to be "large enough"
