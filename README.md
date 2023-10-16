@@ -1,5 +1,5 @@
 # algoiot
-Algorand IoT tools and microSDK
+Algorand IoT tools and microSDK: An Arduino sketch for the ESP32 wireless microcontroller, demonstrating the "notarization" of sensors data via the Algorand blockchain
 
 For all information on how to use the project see:
 https://github.com/GT50-SRL/algoiot/blob/main/doc/AlgoIoT.md
