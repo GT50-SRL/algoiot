@@ -3,7 +3,7 @@
  * 
  *  Algorand client for ESP32 (and other MCUs)
  * 
- *  Last mod 20231012-2
+ *  Last mod 20231017-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -22,11 +22,13 @@
  * limitations under the License.*/
 
 
-/////////////////////////////////////////////////////////////////////////
-//
-// User-defined settings are in user_config.h: please edit accordingly
-//
-/////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////
+//     *******************************************************************
+// ==> User-defined settings are in user_config.h: please edit accordingly <==
+//     *******************************************************************
+/////////////////////////////////////////////////////////////////////////////////
+
 
 
 // TODO:
@@ -269,14 +271,6 @@ void setup()
 
   // Derive public key = sender address ( = this node address) from private key
   Ed25519::derivePublicKey(g_senderAddressBytes, g_privateKey);
-  #ifdef SERIAL_DEBUGMODE
-  DEBUG_SERIAL.println("\n Public Key bytes derived from private key:");
-  for (uint8_t i = 0; i < ALGORAND_KEY_BYTES; i++)
-  {
-    DEBUG_SERIAL.printf("%d ", (int)g_senderAddressBytes[i]);
-  }
-  DEBUG_SERIAL.println();
-  #endif
 
   // If RECEIVER_ADDRESS is empty, use sender address (transaction to self), else decode it
   if (strlen(RECEIVER_ADDRESS) == 0)
@@ -390,7 +384,7 @@ void loop()
                   DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
                   DEBUG_SERIAL.print(g_transactionID);
                   DEBUG_SERIAL.println(" ***\n");
-                  DEBUG_SERIAL.printf("Total wakeup time = %u\n\n", millis() - currentMillis);
+                  // DEBUG_SERIAL.printf("Total wakeup time = %u\n\n", millis() - currentMillis);
                   #endif
                 }
                 else
@@ -633,11 +627,7 @@ int getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
 
   // configure server and url               
   g_httpClient.begin(httpRequest);
-  
-  #ifdef SERIAL_DEBUGMODE
-  DEBUG_SERIAL.print("Sending: "); DEBUG_SERIAL.println(httpRequest);
-  #endif
-  
+    
   int httpResponseCode = g_httpClient.GET();
 
       
@@ -1133,14 +1123,6 @@ int prepareTransactionMessagePack(msgPack mPack,
 
   // End of messagepack
 
-  #ifdef SERIAL_DEBUGMODE
-  // Debug in Base64
-  char debugB64[1024] = "";
-  DEBUG_SERIAL.println("\nMessagePack (clean) B64:");
-  encode_base64((unsigned char*)mPack->msgBuffer + BLANK_MSGPACK_HEADER, mPack->currentMsgLen, (unsigned char*)debugB64);
-  DEBUG_SERIAL.println((char *)debugB64);
-  #endif
-
   return 0;
 }
 
@@ -1170,24 +1152,8 @@ int signMessagePackAddingPrefix(msgPack mPack, uint8_t signature[64])
   payloadPointer[0] = 'T';
   payloadPointer[1] = 'X';
 
-
-  #ifdef SERIAL_DEBUGMODE
-  char debugB64[1024] = "";
-  encode_base64((unsigned char*)payloadPointer, 
-                payloadBytes, 
-                (unsigned char*)debugB64);
-  DEBUG_SERIAL.println("\nTo be signed B64:");
-  DEBUG_SERIAL.println((char *)debugB64);
-  #endif
-
   // Sign pack+prefix
   Ed25519::sign(signature, g_privateKey, g_senderAddressBytes, payloadPointer, payloadBytes);
-
-  #ifdef SERIAL_DEBUGMODE
-  encode_base64((unsigned char*)signature, 64, (unsigned char*)debugB64);
-  DEBUG_SERIAL.println("\nSignature B64:");
-  DEBUG_SERIAL.println((char *)debugB64);
-  #endif
 
   return 0;
 }
@@ -1273,13 +1239,6 @@ int createSignedBinaryTransaction(msgPack mPack, const uint8_t* signature)
 
   // The rest stays as it is
 
-  #ifdef SERIAL_DEBUGMODE
-  char debugB64[1024] = "";
-  DEBUG_SERIAL.println("\nSigned msgpack B64:");
-  encode_base64((unsigned char*)mPack->msgBuffer, mPack->currentMsgLen, (unsigned char*)debugB64);
-  DEBUG_SERIAL.println((char *)debugB64);
-  #endif
-
   return 0;
 }
 
@@ -1292,13 +1251,10 @@ int submitTransaction(const msgPack mPack)
 {
   String httpRequest = g_httpBaseURL + POST_TRANSACTION;
           
-  // configure server and url               
+  // Configure server and url               
   g_httpClient.begin(httpRequest);
   
-  #ifdef SERIAL_DEBUGMODE
-  DEBUG_SERIAL.print("\nPOSTing to: "); DEBUG_SERIAL.println(httpRequest);
-  #endif
-  
+  // Configure MIME type
   g_httpClient.addHeader("Content-Type", POST_MIME_TYPE);
   int httpResponseCode = g_httpClient.POST(mPack->msgBuffer, mPack->currentMsgLen);
       

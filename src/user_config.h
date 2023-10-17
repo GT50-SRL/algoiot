@@ -3,6 +3,7 @@
 
 // User-configured parameters. Edit as needed
 
+// This is an Algorand Testnet account, for demo purposes. Refinance with Dispenser if needed, or use an account of yours
 #define NODE_ACCOUNT_MNEMONICS "shadow market lounge gauge battle small crash funny supreme regular obtain require control oil lend reward galaxy tuition elder owner flavor rural expose absent sniff"  
 #define RECEIVER_ADDRESS "" 				// Specify "" to send to self
 #define PAYMENT_AMOUNT_MICROALGOS 100000	// Please check vs. ALGORAND_MIN_PAYMENT_MICROALGOS in .ino
