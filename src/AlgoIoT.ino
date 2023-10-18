@@ -1,9 +1,9 @@
 /**
  *  "AlgoIoT"
  * 
- *  Algorand client for ESP32 (and other MCUs)
+ *  Algorand lightweight client proof-of-concept for ESP32 (easy to port to other MCUs)
  * 
- *  Last mod 20231017-1
+ *  Last mod 20231018-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
