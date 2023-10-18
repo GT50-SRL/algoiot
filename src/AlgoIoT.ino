@@ -3,7 +3,7 @@
  * 
  *  Algorand lightweight client proof-of-concept for ESP32 (easy to port to other MCUs)
  * 
- *  Last mod 20231018-1
+ *  Last mod 20231018-2
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -346,7 +346,7 @@ void loop()
       // submitTransaction()
 
       // fill Note field in ARC-2
-      iErr = buildARC2JNotesField(&(g_notes[0]), MAX_NOTES_SIZE, NODE_SERIAL_NUMBER, T_C, H_PCT, P_MBAR, &notesLen);
+      iErr = buildARC2JNotesField(&(g_notes[0]), MAX_NOTES_SIZE, NODE_SERIAL_NUMBER, tempC, rhPct, pmbar, &notesLen);
       if (iErr)
       {
         #ifdef SERIAL_DEBUGMODE
@@ -384,7 +384,7 @@ void loop()
                   DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
                   DEBUG_SERIAL.print(g_transactionID);
                   DEBUG_SERIAL.println(" ***\n");
-                  // DEBUG_SERIAL.printf("Total wakeup time = %u\n\n", millis() - currentMillis);
+                  // DEBUG_SERIAL.printf("Total tx time = %u\n\n", millis() - currentMillis);
                   #endif
                 }
                 else
