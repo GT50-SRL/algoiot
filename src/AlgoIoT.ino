@@ -3,7 +3,7 @@
  * 
  *  Algorand lightweight client proof-of-concept for ESP32 (easy to port to other MCUs)
  * 
- *  Last mod 20231018-2
+ *  Last mod 20231024-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -36,7 +36,6 @@
 // Max number of attempts connecting to WiFi
 // SHA512/256
 // Mnemonics checksum (requires SHA512/256)
-// Actual reading from BME280
 // Sleep/wakeup
 
 #include <Arduino.h>
@@ -52,6 +51,9 @@
 #include "base32decode.h" // Base32 decoding for Algorand addresses
 #include "bip39enwords.h" // BIP39 english words to convert Algorand private key from mnemonics
 #include "user_config.h"
+#ifndef FAKE_SENSOR
+#include <Bme280.h> // https://github.com/malokhvii-eduard/arduino-bme280
+#endif
 
 #define DEBUG_SERIAL Serial
 
@@ -77,19 +79,19 @@
 #define ALGORAND_MNEMONIC_MAX_LEN 8
 #define NODE_SERIAL_NUMBER 1234567890UL
 #define ALGORAND_APP_NAME "AlgoIoT/v0.9"
-#define ALGORAND_NOTES_SN_LABEL "SN"
-#define ALGORAND_NOTES_T_LABEL "T(C)"
-#define ALGORAND_NOTES_H_LABEL "H(%)"
-#define ALGORAND_NOTES_P_LABEL "P(mbar)"
+#define ALGORAND_NOTES_SN_LABEL "NodeSerialNum"
+#define ALGORAND_NOTES_LAT_LABEL "Lat"
+#define ALGORAND_NOTES_LON_LABEL "Lon"
+#define ALGORAND_NOTES_ALT_LABEL "Alt(m)"
+#define ALGORAND_NOTES_T_LABEL "Temperature(°C)"
+#define ALGORAND_NOTES_H_LABEL "RelHumidity(%)"
+#define ALGORAND_NOTES_P_LABEL "Pressure(mbar)"
 #ifndef RECEIVER_ADDRESS
   #define RECEIVER_ADDRESS ""
 #endif  
 
 
-// TODO derive binary address = public key from private key
-#define THIS_NODE_ADDRESS "MT3WLS4GKJLZZ6CYFZPRUGR2PSSXXC5ABO72CB45AKNCGSUCSCVNWDKOUY" // Address of current IoT device
-// #define SENDER_ADDRESS THIS_NODE_ADDRESS
-#define HTTP_ENDPOINT "https://testnet-api.algonode.cloud"
+#define HTTP_ENDPOINT "https://testnet-api.algonode.cloud"  // Algonode Testnet API
 #define GET_TRANSACTION_PARAMS "/v2/transactions/params"
 #define POST_TRANSACTION "/v2/transactions"
 #define ALGORAND_NETWORK_ID "testnet-v1.0"
@@ -97,7 +99,6 @@
 #define ALGORAND_MAX_WAIT_ROUNDS 1000
 #define ALGORAND_MIN_PAYMENT_MICROALGOS 1 
 
-#define FAKE_SENSOR
 
 
 
@@ -114,13 +115,12 @@ uint8_t* g_receiverAddressBytes = NULL;
 uint8_t* g_testnetHash = NULL;
 uint8_t g_Signature[ALGORAND_NET_HASH_BYTES];
 uint8_t g_TransactionMessagePack[MAX_TX_MSGPACK_SIZE];
-// fake values for temperature, humidity, pressure
-const uint8_t H_PCT = 55;
-const float T_C = 25.5f;
-const uint16_t P_MBAR = 1018;
 uint8_t g_notes[MAX_NOTES_SIZE];
 #ifdef SERIAL_DEBUGMODE
 char g_transactionID[65] = "";
+#endif
+#ifndef FAKE_SENSOR
+Bme280TwoWire g_BMEsensor;
 #endif
 // End globals
 
@@ -134,7 +134,14 @@ char g_transactionID[65] = "";
 
 void waitForever();
 
+// Read sensors data (real of fake depending on #define in user_config.h)
+// Returns error code (0 = OK)
 int readSensors(float* temperature_C, uint8_t* relhum_Pct, uint16_t* pressure_mbar);
+
+
+// Read GPS data (real of fake depending on #define in user_config.h)
+// Returns error code (0 = OK)
+int readGPS(float* lat, float* lon, int16_t* altitude_m);
 
 
 // Algorand-related functions
@@ -163,19 +170,14 @@ int decodePrivateKeyFromMnemonics(const char* mnemonicWords, uint8_t outPrivateK
 int buildARC2JNotesField(uint8_t* outBuffer,
                          const uint16_t bufferLen,
                          const uint32_t serialNumber,
+                         const float latitude,
+                         const float longitude,
+                         const int16_t altitude_meters,
                          const float temperatureC,
                          const uint8_t Hpct,
                          const uint16_t Pmbar,
                          uint16_t* outputLen);
 
-
-// Builds "notes" field, which carries data to be logged (ARC-2 MessagePack format)
-// msgPack passed by caller (not allocated internally)
-int buildARC2MPNotesField(msgPack mPack,
-                          const uint32_t serialNumber,
-                          const float temperatureC,
-                          const uint8_t Hpct,
-                          const uint16_t Pmbar);
 
 
 // 1. Retrieves current Algorand transaction parameters
@@ -296,6 +298,13 @@ void setup()
       waitForever();
     }  
   }
+
+  // Initialize T/H/P sensor
+  #ifndef FAKE_SENSOR
+  Wire.begin(SDA_PIN, SCL_PIN);
+  g_BMEsensor.begin(Bme280TwoWireAddress::Primary);
+  g_BMEsensor.setSettings(Bme280Settings::indoor());
+  #endif    
 }
 
 
@@ -310,6 +319,9 @@ void loop()
   uint8_t rhPct = 0;
   float tempC = 0.0f;
   uint16_t pmbar = 0;
+  float latitude = 0.0f;
+  float longitude = 0.0f;
+  int16_t altitude_m = 0;
 
   // Check for WiFi connection
   #ifdef SERIAL_DEBUGMODE
@@ -337,90 +349,105 @@ void loop()
     else
     { // readsensors OK
 
-      // From now on, it's just a matter of calling in sequence:
-      // buildARC2JNotesField()
-      // getAlgorandTxParams()
-      // prepareTransactionMessagePack()
-      // signMessagePackAddingPrefix()
-      // createSignedBinaryTransaction()
-      // submitTransaction()
-
-      // fill Note field in ARC-2
-      iErr = buildARC2JNotesField(&(g_notes[0]), MAX_NOTES_SIZE, NODE_SERIAL_NUMBER, tempC, rhPct, pmbar, &notesLen);
+      iErr = readGPS(&latitude, &longitude, &altitude_m);
       if (iErr)
       {
         #ifdef SERIAL_DEBUGMODE
-        DEBUG_SERIAL.printf("Error %d building note field\n", iErr);
+        DEBUG_SERIAL.printf("Error %d reading GPS\n", iErr);
         #endif
       }
       else
-      { // Node field OK, proceed querying current Algorand network parameters
-        int httpResCode = getAlgorandTxParams(&fv, &fee);
-        if (httpResCode == 200)
-        { // OK        
-          #ifdef SERIAL_DEBUGMODE
-          DEBUG_SERIAL.println("Transaction parameters correctly retrieved from algod service");
-          #endif
+      { // readGPS OK
 
-        
-          iErr = prepareTransactionMessagePack(g_msgPackTx, fv, fee, PAYMENT_AMOUNT_MICROALGOS, 
-                    g_receiverAddressBytes, g_notes, notesLen);
-          if (!iErr)
-          { // Payment transaction correctly assembled. Now sign it
-            iErr = signMessagePackAddingPrefix(g_msgPackTx, signature);
+        // From now on, it's just a matter of calling in sequence:
+        // buildARC2JNotesField()
+        // getAlgorandTxParams()
+        // prepareTransactionMessagePack()
+        // signMessagePackAddingPrefix()
+        // createSignedBinaryTransaction()
+        // submitTransaction()
+
+        // fill Note field in ARC-2 (JSON data format)
+        iErr = buildARC2JNotesField(&(g_notes[0]), MAX_NOTES_SIZE, 
+                                    NODE_SERIAL_NUMBER, 
+                                    latitude, longitude, altitude_m,
+                                    tempC, rhPct, pmbar, 
+                                    &notesLen);
+        if (iErr)
+        {
+          #ifdef SERIAL_DEBUGMODE
+          DEBUG_SERIAL.printf("Error %d building note field\n", iErr);
+          #endif
+        }
+        else
+        { // Node field OK, proceed querying current Algorand network parameters
+          int httpResCode = getAlgorandTxParams(&fv, &fee);
+          if (httpResCode == 200)
+          { // OK        
+            #ifdef SERIAL_DEBUGMODE
+            DEBUG_SERIAL.println("Transaction parameters correctly retrieved from algod service");
+            #endif
+
+          
+            iErr = prepareTransactionMessagePack(g_msgPackTx, fv, fee, PAYMENT_AMOUNT_MICROALGOS, 
+                      g_receiverAddressBytes, g_notes, notesLen);
             if (!iErr)
-            { // Sign OK, compose payload
-              iErr = createSignedBinaryTransaction(g_msgPackTx, signature);
+            { // Payment transaction correctly assembled. Now sign it
+              iErr = signMessagePackAddingPrefix(g_msgPackTx, signature);
               if (!iErr)
-              { // Payload ready. Now we can submit it via algod REST API
-                #ifdef SERIAL_DEBUGMODE
-                DEBUG_SERIAL.println("\nReady to submit transaction to Algorand network");
-                DEBUG_SERIAL.println();
-                #endif
-                iErr = submitTransaction(g_msgPackTx); // Returns HTTP code
-                if (iErr == 200)  // HTTP OK
-                {
+              { // Sign OK, compose payload
+                iErr = createSignedBinaryTransaction(g_msgPackTx, signature);
+                if (!iErr)
+                { // Payload ready. Now we can submit it via algod REST API
                   #ifdef SERIAL_DEBUGMODE
-                  DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
-                  DEBUG_SERIAL.print(g_transactionID);
-                  DEBUG_SERIAL.println(" ***\n");
-                  // DEBUG_SERIAL.printf("Total tx time = %u\n\n", millis() - currentMillis);
+                  DEBUG_SERIAL.println("\nReady to submit transaction to Algorand network");
+                  DEBUG_SERIAL.println();
                   #endif
+                  iErr = submitTransaction(g_msgPackTx); // Returns HTTP code
+                  if (iErr == 200)  // HTTP OK
+                  {
+                    #ifdef SERIAL_DEBUGMODE
+                    DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
+                    DEBUG_SERIAL.print(g_transactionID);
+                    DEBUG_SERIAL.println(" ***\n");
+                    // DEBUG_SERIAL.printf("Total tx time = %u\n\n", millis() - currentMillis);
+                    #endif
+                  }
+                  else
+                  {
+                    #ifdef SERIAL_DEBUGMODE
+                    DEBUG_SERIAL.print("\nError submitting Algorand transaction. HTTP code=");
+                    DEBUG_SERIAL.println(iErr);
+                    #endif
+                  }
                 }
                 else
-                {
+                { // Error from createSignedBinaryTransaction()
                   #ifdef SERIAL_DEBUGMODE
-                  DEBUG_SERIAL.print("\nError submitting Algorand transaction. HTTP code=");
-                  DEBUG_SERIAL.println(iErr);
+                  DEBUG_SERIAL.printf("\nError %d creating signed binary transaction\n", iErr);
                   #endif
                 }
               }
               else
-              { // Error from createSignedBinaryTransaction()
+              { // Error from signMessagePackAddingPrefix()
                 #ifdef SERIAL_DEBUGMODE
-                DEBUG_SERIAL.printf("\nError %d creating signed binary transaction\n", iErr);
+                DEBUG_SERIAL.printf("\nError %d signing MessagePack\n", iErr);
                 #endif
               }
             }
             else
-            { // Error from signMessagePackAddingPrefix()
+            { // Error from prepareTransactionMessagePack()
               #ifdef SERIAL_DEBUGMODE
-              DEBUG_SERIAL.printf("\nError %d signing MessagePack\n", iErr);
+              DEBUG_SERIAL.printf("\nError %d creating MessagePack\n", iErr);
               #endif
             }
           }
           else
-          { // Error from prepareTransactionMessagePack()
+          { // Error from getAlgorandTxParams()
             #ifdef SERIAL_DEBUGMODE
-            DEBUG_SERIAL.printf("\nError %d creating MessagePack\n", iErr);
+            DEBUG_SERIAL.println("Error retrieving transaction parameters from algod service");
             #endif
           }
-        }
-        else
-        { // Error from getAlgorandTxParams()
-          #ifdef SERIAL_DEBUGMODE
-          DEBUG_SERIAL.println("Error retrieving transaction parameters from algod service");
-          #endif
         }
       }
       // Wait for next data upload
@@ -448,12 +475,27 @@ void waitForever()
 int readSensors(float* temperature_C, uint8_t* relhum_Pct, uint16_t* pressure_mbar)
 {
   #ifdef FAKE_SENSOR
-  *temperature_C = T_C;
-  *relhum_Pct = H_PCT;
-  *pressure_mbar = P_MBAR;
+  *temperature_C = FAKE_T_C;  // Dummy values assigned in user_config.h
+  *relhum_Pct = FAKE_H_PCT;
+  *pressure_mbar = FAKE_P_MBAR;
   #else
-  // TODO read BME280 sensor
-  return 1;
+  *temperature_C = g_BMEsensor.getTemperature();  
+  *pressure_mbar = (uint16_t) (0.01f * g_BMEsensor.getPressure());
+  *relhum_Pct = (uint8_t)(g_BMEsensor.getHumidity() + 0.5f);  // Round to largest int (H is always > 0)
+  #endif
+
+  return 0;
+}
+
+
+int readGPS(float* lat, float* lon, int16_t* altitude_m)
+{
+  #ifdef FAKE_GPS
+  *lat = FAKE_LAT;  // Dummy values assigned in user_config.h
+  *lon = FAKE_LON;
+  *altitude_m = FAKE_ALT_M;
+  #else
+  return 1; // We did not actually implement GPS reading
   #endif
 
   return 0;
@@ -700,6 +742,9 @@ int getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
 int buildARC2JNotesField(uint8_t* outBuffer,
                          const uint16_t bufferLen,
                          const uint32_t serialNumber,
+                         const float latitude,
+                         const float longitude,
+                         const int16_t altitude_meters,
                          const float temperatureC,
                          const uint8_t Hpct,
                          const uint16_t Pmbar,
@@ -708,7 +753,7 @@ int buildARC2JNotesField(uint8_t* outBuffer,
   // An ARC-2/JSON, "note" starts with the app name in clear text, followed by ":j" again in clear text
   // Then we have the JSON (root node and fields = "label":value)
   int iErr = 0;
-  StaticJsonDocument <64>JDoc;
+  StaticJsonDocument <192>JDoc;
   uint16_t currentPos = 0;
 
   // Check output buffer is not empty
@@ -724,6 +769,9 @@ int buildARC2JNotesField(uint8_t* outBuffer,
 
   // Build JSON
   JDoc[ALGORAND_NOTES_SN_LABEL] = serialNumber;
+  JDoc[ALGORAND_NOTES_LAT_LABEL] = latitude;
+  JDoc[ALGORAND_NOTES_LON_LABEL] = longitude;
+  JDoc[ALGORAND_NOTES_ALT_LABEL] = altitude_meters;
   JDoc[ALGORAND_NOTES_T_LABEL] = temperatureC;
   JDoc[ALGORAND_NOTES_H_LABEL] = Hpct;
   JDoc[ALGORAND_NOTES_P_LABEL] = Pmbar;
@@ -740,88 +788,6 @@ int buildARC2JNotesField(uint8_t* outBuffer,
   return 0;
 }
 
-
-// Builds "notes" field, which carries data to be logged (ARC-2 MessagePack format)
-// msgPack passed by caller
-// Not used at the moment: message pack-formatted ARC-2 notes are not correctly interpreted by explorers
-int buildARC2MPNotesField(msgPack mPack,
-                          const uint32_t serialNumber,
-                          const float temperatureC,
-                          const uint8_t Hpct,
-                          const uint16_t Pmbar)
-{
-  // An ARC-2/Message Pack, "note" starts with the app name in clear text, followed by ":m" again in clear text
-  // Then we have the Message Pack proper (root map and fields = "label":value)
-  int iErr = 0;
-  uint16_t totalLen = 0;
-  const uint16_t clearTextHeaderLen = strlen(ALGORAND_APP_NAME) + 2; // App name + ':m'
-
-  // Check mpack buffer is not empty
-  if (mPack->msgBuffer == NULL)
-    return 1;
-
-  // Check buffer len is appropriate
-  totalLen += clearTextHeaderLen;
-  totalLen += 1;  // Root Map specifier
-  totalLen += strlen(ALGORAND_NOTES_SN_LABEL) + strlen(ALGORAND_NOTES_T_LABEL) + strlen(ALGORAND_NOTES_H_LABEL) + strlen(ALGORAND_NOTES_P_LABEL) + 4; // Labels and specifiers
-  totalLen += 4 + 1;  // Float value for T and specifier
-  totalLen += 4 + 2;  // 2 x uint16 values for H and P, plus specifiers
-  if (mPack->bufferLen < totalLen)
-    return 2;
-
-  // Leave space for app name and separator (clear text before Message Pack)
-  iErr = msgPackModifyCurrentPosition(mPack, clearTextHeaderLen);
-  if (iErr)
-    return 3;
-
-  // Root map
-  iErr = msgpackAddShortMap(mPack, 4);
-  if (iErr)
-    return 3;
-
-  // Serial number label
-  iErr = msgpackAddShortString(mPack, ALGORAND_NOTES_SN_LABEL);
-  if (iErr)
-    return 3;
-  // Serial number value
-  iErr = msgpackAddUInt32(mPack, serialNumber);
-  if (iErr)
-    return 3;
-
-  // Temperature label
-  iErr = msgpackAddShortString(mPack, ALGORAND_NOTES_T_LABEL);
-  if (iErr)
-    return 3;
-  // Temperature value
-  iErr = msgpackAddFloat(mPack, temperatureC);
-  if (iErr)
-    return 3;
-
-  // Relative humidity label
-  iErr = msgpackAddShortString(mPack, ALGORAND_NOTES_H_LABEL);
-  if (iErr)
-    return 3;
-  // RelHum value (%)
-  iErr = msgpackAddUInt16(mPack, Hpct);
-  if (iErr)
-    return 3;
-
-  // Atmospheric pressure label
-  iErr = msgpackAddShortString(mPack, ALGORAND_NOTES_P_LABEL);
-  if (iErr)
-    return 3;
-  // Pressure value (millibar)
-  iErr = msgpackAddUInt16(mPack, Pmbar);
-  if (iErr)
-    return 3;
-
-  // Now we add the clear text part as buffer header
-  memcpy((void*)mPack->msgBuffer, (void*)ALGORAND_APP_NAME, clearTextHeaderLen - 2);
-  mPack->msgBuffer[clearTextHeaderLen - 2] = ':';
-  mPack->msgBuffer[clearTextHeaderLen - 1] = 'm';
-
-  return 0;
-}
 
 
 // To be called AFTER getAlgorandTxParams(), because we need current "min-fee" and "last-round" values from algod
