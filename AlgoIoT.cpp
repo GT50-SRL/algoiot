@@ -1,10 +1,8 @@
 // algoiot.cpp
-// v20231129-1
+// v20231205-1
 
 // Work in progress	
 // TODO:
-// New constructor with mnemonic words
-// New setter for destination address
 // submitTransactionToAlgorand():
 //  check for network errors separately and return appropriate error code
 // Max number of attempts connecting to WiFi
@@ -36,9 +34,8 @@
 #include "bip39enwords.h" // BIP39 english words to convert Algorand private key from mnemonics
 #include "algoiot.h"
 
-#ifdef SERIAL_DEBUGMODE
+// #define LIB_DEBUGMODE
 #define DEBUG_SERIAL Serial
-#endif
 
 
 // Class AlgoIoT
@@ -54,14 +51,14 @@ AlgoIoT::AlgoIoT(const char* sAppName, const char* nodeAccountMnemonics)
 
   if (sAppName == NULL)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.println("\n Error: NULL AppName passed to constructor\n");
     #endif
     return;
   }
   if (strlen(sAppName) > DAPP_NAME_MAX_LEN)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.println("\n Error: app name too long\n");
     #endif
     return;
@@ -70,7 +67,7 @@ AlgoIoT::AlgoIoT(const char* sAppName, const char* nodeAccountMnemonics)
 
   if (nodeAccountMnemonics == NULL)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.println("\n Error: NULL mnemonic words passed to constructor\n");
     #endif
     return;
@@ -83,7 +80,7 @@ AlgoIoT::AlgoIoT(const char* sAppName, const char* nodeAccountMnemonics)
   iErr = decodePrivateKeyFromMnemonics(nodeAccountMnemonics, m_privateKey);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n Error %d decoding Algorand private key from mnemonic words\n", iErr);
     #endif
     return;
@@ -97,7 +94,7 @@ AlgoIoT::AlgoIoT(const char* sAppName, const char* nodeAccountMnemonics)
   m_receiverAddressBytes = (uint8_t*)malloc(ALGORAND_ADDRESS_BYTES);
   if (!m_receiverAddressBytes)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n Memory error creating receiver address\n", iErr);
     #endif
     return;
@@ -106,8 +103,10 @@ AlgoIoT::AlgoIoT(const char* sAppName, const char* nodeAccountMnemonics)
 }
 
 
-int setDestinationAddress(const char* algorandAddress)
+int AlgoIoT::setDestinationAddress(const char* algorandAddress)
 {
+  int iErr = 0;
+  
   if (algorandAddress == NULL)
   {
     return ALGOIOT_NULL_POINTER_ERROR;
@@ -125,7 +124,7 @@ int setDestinationAddress(const char* algorandAddress)
 }
 
 
-int setAlgorandNetwork(const uint8 networkType)
+int AlgoIoT::setAlgorandNetwork(const uint8_t networkType)
 {
   if ( (networkType != ALGORAND_TESTNET) && (networkType != ALGORAND_MAINNET) )
   {
@@ -143,6 +142,12 @@ int setAlgorandNetwork(const uint8 networkType)
   }
 
   return ALGOIOT_NO_ERROR;
+}
+
+
+const char* AlgoIoT::getTransactionID()
+{
+  return m_transactionID;
 }
 
 
@@ -422,7 +427,7 @@ int AlgoIoT::submitTransactionToAlgorand()
   msgPackTx = msgpackInit(&(transactionMessagePackBuffer[0]), ALGORAND_MAX_TX_MSGPACK_SIZE);
   if (msgPackTx == NULL)  
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.println("\n Error initializing transaction MessagePack\n");
     #endif
     return NULL;
@@ -448,7 +453,7 @@ int AlgoIoT::submitTransactionToAlgorand()
   }
 
   // Payload ready. Now we can submit it via algod REST API
-  #ifdef SERIAL_DEBUGMODE
+  #ifdef LIB_DEBUGMODE
   DEBUG_SERIAL.println("\nReady to submit transaction to Algorand network");
   DEBUG_SERIAL.println();
   #endif
@@ -459,7 +464,7 @@ int AlgoIoT::submitTransactionToAlgorand()
   }
   // OK: our transaction, carrying sensor data in the Note field, 
   // was successfully submitted to the Algorand blockchain
-  #ifdef SERIAL_DEBUGMODE
+  #ifdef LIB_DEBUGMODE
   DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
   DEBUG_SERIAL.print(transactionID);
   DEBUG_SERIAL.println(" ***\n");
@@ -481,7 +486,7 @@ int AlgoIoT::submitTransactionToAlgorand()
 // Decodes Base64 Algorand network hash to 32-byte binary buffer suitable for our functions
 // outBinaryHash has to be freed by caller
 // Returns error code (0 = OK)
-int AlgoIoT::decodeAlgorandm_netHash(const char* hashB64, uint8_t*& outBinaryHash)
+int AlgoIoT::decodeAlgorandNetHash(const char* hashB64, uint8_t*& outBinaryHash)
 { 
   if (hashB64 == NULL)
     return 1;
@@ -647,9 +652,10 @@ int AlgoIoT::getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
   // httpResponseCode will be negative on error
   if (httpResponseCode < 0)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.print("HTTP GET failed, error: "); DEBUG_SERIAL.println(m_httpClient.errorToString(httpResponseCode).c_str());
     #endif
+    return ALGOIOT_INTERNAL_GENERIC_ERROR;
   }
   else
   {
@@ -660,7 +666,7 @@ int AlgoIoT::getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
         String payload = m_httpClient.getString();
         StaticJsonDocument<ALGORAND_MAX_RESPONSE_LEN> JSONResDoc;
                         
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.println("GetParams server response:");
         DEBUG_SERIAL.println(payload);
         #endif
@@ -668,16 +674,17 @@ int AlgoIoT::getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
         DeserializationError error = deserializeJson(JSONResDoc, payload);                
         if (error) 
         {
-          #ifdef SERIAL_DEBUGMODE
+          #ifdef LIB_DEBUGMODE
           DEBUG_SERIAL.println("GetParams: JSON response parsing failed!");
           #endif
+          return ALGOIOT_INTERNAL_GENERIC_ERROR;
         }
         else
         { // Fetch interesting fields
           *minFee = JSONResDoc["min-fee"];
           *round = JSONResDoc["last-round"];
 
-          #ifdef SERIAL_DEBUGMODE
+          #ifdef LIB_DEBUGMODE
           DEBUG_SERIAL.println("Algorand transaction parameters received:");
           DEBUG_SERIAL.print("min-fee = "); DEBUG_SERIAL.print(*minFee); DEBUG_SERIAL.println(" microAlgo");
           DEBUG_SERIAL.print("last-round = "); DEBUG_SERIAL.println(*round);                  
@@ -687,16 +694,18 @@ int AlgoIoT::getAlgorandTxParams(uint32_t* round, uint16_t* minFee)
       break;
       case 204:
       {   // No error, but no data available from server
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.println("Server returned no data");
         #endif
+        return ALGOIOT_NETWORK_ERROR;
       }
       break;
       default:
       {
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.print("Unmanaged HTTP response code "); DEBUG_SERIAL.println(httpResponseCode);
         #endif
+        return ALGOIOT_INTERNAL_GENERIC_ERROR;
       }
       break;
     }
@@ -743,7 +752,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
     iErr = decodeAlgorandNetHash(ALGORAND_TESTNET_HASH, m_netHash);
     if (iErr)
     {
-      #ifdef SERIAL_DEBUGMODE
+      #ifdef LIB_DEBUGMODE
       DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d decoding Algorand network hash\n\n", iErr);
       #endif
       return ALGOIOT_INTERNAL_GENERIC_ERROR;
@@ -755,7 +764,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
     iErr = decodeAlgorandNetHash(ALGORAND_MAINNET_HASH, m_netHash);
     if (iErr)
     {
-      #ifdef SERIAL_DEBUGMODE
+      #ifdef LIB_DEBUGMODE
       DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d decoding Algorand network hash\n\n", iErr);
       #endif
       return ALGOIOT_INTERNAL_GENERIC_ERROR;
@@ -770,7 +779,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgPackModifyCurrentPosition(msgPackTx, BLANK_MSGPACK_HEADER);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d from msgPackModifyCurrentPosition()\n\n");
     #endif
 
@@ -781,7 +790,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortMap(msgPackTx, nFields); 
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding root map\n\n");
     #endif
 
@@ -794,7 +803,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "amt");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding amt label\n\n");
     #endif
 
@@ -826,7 +835,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   }
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding amt value\n\n");
     #endif
 
@@ -837,7 +846,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "fee");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding fee label\n\n");
     #endif
 
@@ -847,7 +856,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddUInt16(msgPackTx, fee);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding fee value\n\n");
     #endif
 
@@ -858,7 +867,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "fv");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding fv label\n\n");
     #endif
 
@@ -868,7 +877,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddUInt32(msgPackTx, lastRound);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding fv value\n\n");
     #endif
 
@@ -879,7 +888,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "gen");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding gen label\n\n");
     #endif
 
@@ -889,7 +898,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, gen);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding gen string\n\n");
     #endif
 
@@ -900,7 +909,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "gh");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding gh label\n\n");
     #endif
 
@@ -910,7 +919,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortByteArray(msgPackTx, (const uint8_t*)&(m_netHash[0]), (const uint8_t)ALGORAND_NET_HASH_BYTES);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding gh value\n\n");
     #endif
 
@@ -921,7 +930,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "lv");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding lv label\n\n");
     #endif
 
@@ -931,7 +940,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddUInt32(msgPackTx, lv);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding lv value\n\n");
     #endif
 
@@ -944,7 +953,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
     iErr = msgpackAddShortString(msgPackTx, "note");
     if (iErr)
     {
-      #ifdef SERIAL_DEBUGMODE
+      #ifdef LIB_DEBUGMODE
       DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding note label\n\n");
       #endif
 
@@ -959,7 +968,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
       iErr = msgpackAddByteArray(msgPackTx, (const uint8_t*)notes, (const uint16_t)notesLen);
     if (iErr)
     {
-      #ifdef SERIAL_DEBUGMODE
+      #ifdef LIB_DEBUGMODE
       DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding notes content\n\n");
       #endif
 
@@ -971,7 +980,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "rcv");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding rcv label\n\n");
     #endif
 
@@ -981,7 +990,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortByteArray(msgPackTx, (const uint8_t*)&(m_receiverAddressBytes[0]), (const uint8_t)ALGORAND_ADDRESS_BYTES);  
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding rcv value\n\n");
     #endif
 
@@ -992,7 +1001,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "snd");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding snd label\n\n");
     #endif
 
@@ -1002,7 +1011,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortByteArray(msgPackTx, (const uint8_t*)&(m_senderAddressBytes[0]), (const uint8_t)ALGORAND_ADDRESS_BYTES);  
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding snd value\n\n");
     #endif
 
@@ -1013,7 +1022,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "type");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding type label\n\n");
     #endif
 
@@ -1023,7 +1032,7 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
   iErr = msgpackAddShortString(msgPackTx, "pay");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n prepareTransactionMessagePack(): ERROR %d adding type string\n\n");
     #endif
 
@@ -1095,7 +1104,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   iErr = msgPackModifyCurrentPosition(mPack, 0);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n createSignedBinaryTransaction(): ERROR %d resetting position\n\n");
     #endif
 
@@ -1106,7 +1115,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   iErr = msgpackAddShortMap(mPack, 2);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n createSignedBinaryTransaction(): ERROR %d adding map\n\n");
     #endif
 
@@ -1117,7 +1126,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   iErr = msgpackAddShortString(mPack, "sig");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n createSignedBinaryTransaction(): ERROR %d adding sign label\n\n");
     #endif
 
@@ -1128,7 +1137,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   iErr = msgpackAddShortByteArray(mPack, signature, (const uint8_t)ALGORAND_SIG_BYTES);
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n createSignedBinaryTransaction(): ERROR %d adding m_signature\n\n");
     #endif
 
@@ -1139,7 +1148,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   iErr = msgpackAddShortString(mPack, "txn");
   if (iErr)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.printf("\n createSignedBinaryTransaction(): ERROR %d adding txn label\n\n");
     #endif
 
@@ -1154,7 +1163,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
 
 // Submits transaction messagepack to algod
 // Last method to be called, after all the others
-// Returns http response code (200 = OK)
+// Returns http response code (200 = OK) or AlgoIoT error code
 // TODO: On error codes 5xx (server error), maybe we should retry after 5s?
 int AlgoIoT::submitTransaction(msgPack msgPackTx, char* transactionID)
 {
@@ -1171,7 +1180,7 @@ int AlgoIoT::submitTransaction(msgPack msgPackTx, char* transactionID)
   // httpResponseCode will be negative on error
   if (httpResponseCode < 0)
   {
-    #ifdef SERIAL_DEBUGMODE
+    #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.print("\n[HTTP] POST failed, error: "); DEBUG_SERIAL.println(m_httpClient.errorToString(httpResponseCode).c_str());
     #endif
   }
@@ -1181,44 +1190,48 @@ int AlgoIoT::submitTransaction(msgPack msgPackTx, char* transactionID)
     {
       case 200:
       {   // No error: let's get the response for debug purposes
-        #ifdef SERIAL_DEBUGMODE
         String payload = m_httpClient.getString();
         StaticJsonDocument<ALGORAND_MAX_RESPONSE_LEN> JSONResDoc;
                         
         DeserializationError error = deserializeJson(JSONResDoc, payload);                
         if (error) 
         {
+          #ifdef LIB_DEBUGMODE
           DEBUG_SERIAL.println("JSON response parsing failed!");
+          #endif
+          return ALGOIOT_INTERNAL_GENERIC_ERROR;
         }
         else
         { // Fetch interesting fields                  
-          strncpy(transactionID, JSONResDoc["txId"], 64);
+          strncpy(m_transactionID, JSONResDoc["txId"], 64);
         }
-        #endif
       }
       break;
       case 204:
       {   // No error, but no data available from server
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.println("\nServer returned no data");
         #endif
+        return ALGOIOT_NETWORK_ERROR;
       }
       break;
       case 400:
       {   // Malformed request
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.println("\nTransaction format error");
         DEBUG_SERIAL.println("Server response:");
         String payload = m_httpClient.getString();
         DEBUG_SERIAL.println(payload);
         #endif
+        return ALGOIOT_TRANSACTION_ERROR;
       }
       break;
       default:
       {
-        #ifdef SERIAL_DEBUGMODE
+        #ifdef LIB_DEBUGMODE
         DEBUG_SERIAL.print("\nUnmanaged HTTP response code "); DEBUG_SERIAL.println(httpResponseCode);
         #endif
+        return ALGOIOT_INTERNAL_GENERIC_ERROR;
       }
       break;
     }

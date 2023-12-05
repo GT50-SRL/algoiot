@@ -1,5 +1,5 @@
-// algoeiot.h
-// header for algoesp32 library
+// AlgoIoT.h
+// header for AlgoIoT library
 
 // requires "minmpk" MessagePack library (included)
 // requires ArduinoJSON by Benoit Blanchon
@@ -7,21 +7,25 @@
 // requires HTTPClient (ESP32)
 // requires Base64 by Densaugeo https://github.com/Densaugeo/base64_arduino
 
-// v20231129-1
+// v20231205-1
 
 // TODO:
 // API endpoint URL setter (AlgoNode may have to be replaced at some point)
 // API token setter (AlgoNode does not require one for Testnet)
 
-// By Fernando Carello for GT50
-// Released under MIT license:
-
-/* 
-Copyright 2023 GT50 S.r.l.
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
+/* By Fernando Carello for GT50
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * */
 
 
 #ifndef __ALGOIOT_H
@@ -64,17 +68,6 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #define ALGORAND_MNEMONIC_MAX_LEN 8
 #define NOTE_LABEL_MAX_LEN 31
 #define DAPP_NAME_MAX_LEN NOTE_LABEL_MAX_LEN
-/*
-#ifdef USE_TESTNET
-#define HTTP_ENDPOINT ALGORAND_TESTNET_API_ENDPOINT
-#define ALGORAND_NETWORK_ID ALGORAND_TESTNET_ID
-#define ALGORAND_NETWORK_HASH ALGORAND_TESTNET_HASH
-#else 
-#define HTTP_ENDPOINT ALGORAND_MAINNET_API_ENDPOINT
-#define ALGORAND_NETWORK_ID ALGORAND_MAINNET_ID
-#define ALGORAND_NETWORK_HASH ALGORAND_MAINNET_HASH
-#endif
-*/
 #define GET_TRANSACTION_PARAMS "/v2/transactions/params"
 #define POST_TRANSACTION "/v2/transactions"
 #define ALGORAND_MAX_WAIT_ROUNDS 1000
@@ -114,6 +107,7 @@ class AlgoIoT
   String m_httpBaseURL = ALGORAND_TESTNET_API_ENDPOINT;
   char APItoken[ALGORAND_API_TOKEN_CHARS + 1] = "";
   StaticJsonDocument <ALGORAND_MAX_NOTES_SIZE + JSON_ENCODING_MARGIN>m_noteJDoc;  // TO BE TESTED with complete 1000-bytes note field
+  char m_transactionID[ALGORAND_TRANSACTIONID_SIZE + 1] = "";
   uint8_t m_networkType = ALGORAND_TESTNET;
   uint8_t m_privateKey[ALGORAND_KEY_BYTES];
   uint8_t m_senderAddressBytes[ALGORAND_KEY_BYTES]; // = public key
@@ -132,7 +126,7 @@ class AlgoIoT
   // Decodes Base64 Algorand network hash to 32-byte binary buffer suitable for our functions
   // outBinaryHash allocated internally, has to be freed by caller
   // Returns error code (0 = OK)
-  int decodeAlgorandm_netHash(const char* hashB64, uint8_t*& outBinaryHash);
+  int decodeAlgorandNetHash(const char* hashB64, uint8_t*& outBinaryHash);
 
 
   // Accepts a C string containing space-delimited mnemonic words (25 words)
@@ -196,8 +190,10 @@ class AlgoIoT
   // If switching to ALGORAND_MAINNET, however, real currency is involved and the user will have to purchase real Algos
   // "networkType" has to be either ALGORAND_TESTNET or ALGORAND_MAINNET
   // Return: error code (0 = OK)
-  int setAlgorandNetwork(const uint8 networkType);
+  int setAlgorandNetwork(const uint8_t networkType);
 
+  // Returns the ID of the transaction submitted to the Algorand blockchain (if successfully submitted), or an empty string
+  const char* getTransactionID();
 
   // Methods to add data fields (with labels) to the transaction
   // We explicitely provide different methods for each data type (instead a single method with dynamic type)
