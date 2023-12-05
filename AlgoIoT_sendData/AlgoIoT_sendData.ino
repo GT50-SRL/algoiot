@@ -23,27 +23,31 @@
 
 
 
-// TODO:
-//
-
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <AlgoIoT.h>
 
+
+///////////////////////////
+// USER-DEFINED SETTINGS
+///////////////////////////
 // Please edit accordingly
-#define MYWIFI_SSID "My_SSID" 
-#define MYWIFI_PWD "My_Password"
+#define MYWIFI_SSID "My_WiFi_SSID" 	
+#define MYWIFI_PWD "My_WiFi_Password" 
 
+// Assign a name to your IoT app:
 #define DAPP_NAME "AlgoIoT_MyTest1" // Keep it short; 31 chars = absolute max length
+// Mnemonic words (25 BIP-39 words) representing device account. Beware, this is a PRIVATE KEY and should not be shared! 
+// Please replace demo mnemonic words with your own:
 #define NODE_ACCOUNT_MNEMONICS "shadow market lounge gauge battle small crash funny supreme regular obtain require control oil lend reward galaxy tuition elder owner flavor rural expose absent sniff"  
-#define RECEIVER_ADDRESS "" 				// Leave "" to send to self or insert a valid Algorand destination address
-#define USE_TESTNET	// Comment out to use Mainnet  *** BEWARE: Mainnet is the "real thing" and will cost you real Algos! ***
+#define RECEIVER_ADDRESS "" 				// Leave "" to send to self (default, no fee to be paid) or insert a valid Algorand destination address
+#define USE_TESTNET	                // Comment out to use Mainnet  *** BEWARE: Mainnet is the "real thing" and will cost you real Algos! ***
 
+// Assign your node serial number (will be added to Note data):
 #define NODE_SERIAL_NUMBER 1234567890UL
+
+// Sample labels for your data:
 #define SN_LABEL "NodeSerialNum"
-#define LAT_LABEL "Lat"
-#define LON_LABEL "Lon"
-#define ALT_LABEL "Alt(m)"
 #define T_LABEL "Temperature(°C)"
 #define H_LABEL "RelHumidity(%)"
 #define P_LABEL "Pressure(mbar)"
@@ -62,14 +66,18 @@ const uint16_t FAKE_P_MBAR = 1018;
 #include <Bme280.h> // https://github.com/malokhvii-eduard/arduino-bme280
 #endif
 
+#define DATA_SEND_INTERVAL_MINS 60
+#define WIFI_RETRY_DELAY_MS 1000
 
 // Uncomment to get debug prints on Serial Monitor
 #define SERIAL_DEBUGMODE
 
+//////////////////////////////////
+// END OF USER-DEFINED SETTINGS
+//////////////////////////////////
+
 
 #define DEBUG_SERIAL Serial
-
-#define WIFI_RETRY_DELAY_MS 1000
 #define DATA_SEND_INTERVAL (( DATA_SEND_INTERVAL_MINS ) * 60 * 1000UL) 
 
 
@@ -239,6 +247,10 @@ void loop()
         waitForever();
       }
 
+      #ifdef SERIAL_DEBUGMODE
+      DEBUG_SERIAL.println("Data encoded, ready to be submitted to the blockchain\n");
+      #endif
+
       // Data added to structure. Now we can submit our transaction to the blockchain
       iErr = g_algoIoT.submitTransactionToAlgorand();
       if (iErr)
@@ -247,6 +259,12 @@ void loop()
         DEBUG_SERIAL.printf("Error %d submitting transaction to Algorand blockchain\n", iErr);
         #endif
         waitForever();
+      }
+      else
+      { // Properly submitted
+        #ifdef SERIAL_DEBUGMODE
+        DEBUG_SERIAL.printf("\t*** Algorand transaction successfully submitted with ID = %s ***\n\n", g_algoIoT.getTransactionID());
+        #endif
       }
     }
     // Wait for next data upload
