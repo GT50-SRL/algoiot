@@ -3,7 +3,7 @@
  * 
  *  Example for "AlgoIoT", Algorand lightweight library for ESP32
  * 
- *  Last mod 20231205-1
+ *  Last mod 20231213-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -176,9 +176,6 @@ void loop()
   uint8_t rhPct = 0;
   float tempC = 0.0f;
   uint16_t pmbar = 0;
-  float latitude = 0.0f;
-  float longitude = 0.0f;
-  int16_t altitude_m = 0;
 
   // Check for WiFi connection
   #ifdef SERIAL_DEBUGMODE
