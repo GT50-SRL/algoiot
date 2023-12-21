@@ -3,7 +3,7 @@
  * 
  *  Example for "AlgoIoT", Algorand lightweight library for ESP32
  * 
- *  Last mod 20231213-1
+ *  Last mod 20231221-1
  *
  *  By Fernando Carello for GT50
  *  Released under Apache license
@@ -51,11 +51,14 @@
 #define T_LABEL "Temperature(°C)"
 #define H_LABEL "RelHumidity(%)"
 #define P_LABEL "Pressure(mbar)"
+#define LAT_LABEL "Latitude"
+#define LON_LABEL "Longitude"
+#define ALT_LABEL "Elevation(m)"
 
 // Comment out if a BME280 module is connected via I2C to the ESP32 board
-#define FAKE_SENSOR
+#define FAKE_TPH_SENSOR
 
-#ifdef FAKE_SENSOR
+#ifdef FAKE_TPH_SENSOR
 // Assign your fake data of choice here
 const uint8_t FAKE_H_PCT = 55;
 const float FAKE_T_C = 25.5f;
@@ -65,6 +68,11 @@ const uint16_t FAKE_P_MBAR = 1018;
 #define SCL_PIN 22	// Edit accordingly to your board/wiring
 #include <Bme280.h> // https://github.com/malokhvii-eduard/arduino-bme280
 #endif
+
+// You may optionally specify sensor position here, or comment out
+#define POS_LAT_DEG 41.905344f
+#define POS_LON_DEG 12.444122f
+#define POS_ALT_M 21
 
 #define DATA_SEND_INTERVAL_MINS 60
 #define WIFI_RETRY_DELAY_MS 1000
@@ -84,27 +92,29 @@ const uint16_t FAKE_P_MBAR = 1018;
 // Globals
 AlgoIoT g_algoIoT(DAPP_NAME, NODE_ACCOUNT_MNEMONICS);
 WiFiMulti g_wifiMulti;
-#ifndef FAKE_SENSOR
+#ifndef FAKE_TPH_SENSOR
 Bme280TwoWire g_BMEsensor;
 #endif
 // End globals
 
 
 
-/////////////////////////
+//////////////////////////////////////////////
 //
-// Forward Declarations
+// Forward Declarations for local functions
 //
-/////////////////////////
+//////////////////////////////////////////////
 
 void waitForever();
+
+void initializeBME280();
 
 // Read sensors data (real of fake depending on #define in user_config.h)
 // Returns error code (0 = OK)
 int readSensors(float* temperature_C, uint8_t* relhum_Pct, uint16_t* pressure_mbar);
 
-
-// Algorand-related functions
+// Get coordinates. We do not actually use a GPS: position is (optionally) specified by user (see above among defines)
+int readPosition(float* lat_deg, float* lon_deg, int16_t* alt_m);
 
 
 
@@ -130,12 +140,12 @@ void setup()
   // Configure WiFi
   g_wifiMulti.addAP(MYWIFI_SSID, MYWIFI_PWD);
 
+
+  #ifndef FAKE_TPH_SENSOR
   // Initialize T/H/P sensor
-  #ifndef FAKE_SENSOR
-  Wire.begin(SDA_PIN, SCL_PIN);
-  g_BMEsensor.begin(Bme280TwoWireAddress::Primary);
-  g_BMEsensor.setSettings(Bme280Settings::indoor());
-  #endif    
+  initializeBME280();
+  #endif
+
 
   // Change data receiver address and Algorand network type if needed
   if (RECEIVER_ADDRESS != "")
@@ -199,6 +209,52 @@ void loop()
     }
     else
     { // readsensors OK
+      float lat = 0.0f;
+      float lon = 0.0f;
+      int16_t alt = 0;
+
+      uint8_t positionNotSpecified = readPosition(&lat, &lon, &alt);
+
+      if (!positionNotSpecified)
+      { // Add user-defined position
+        iErr = g_algoIoT.dataAddFloatField(LAT_LABEL, lat);
+        if (iErr)
+        {
+          #ifdef TINYPICO
+          // Turn on error LED if on TinyPICO
+          g_tp.DotStar_SetPixelColor(LED_COLOR_RED);
+          #endif
+          #ifdef SERIAL_DEBUGMODE
+          DEBUG_SERIAL.printf("Error %d adding Latitude field\n", iErr);
+          #endif
+          waitForever();
+        }
+        iErr = g_algoIoT.dataAddFloatField(LON_LABEL, lon);
+        if (iErr)
+        {
+          #ifdef TINYPICO
+          // Turn on error LED if on TinyPICO
+          g_tp.DotStar_SetPixelColor(LED_COLOR_RED);
+          #endif
+          #ifdef SERIAL_DEBUGMODE
+          DEBUG_SERIAL.printf("Error %d adding Longitude field\n", iErr);
+          #endif
+          waitForever();
+        }
+        iErr = g_algoIoT.dataAddInt16Field(ALT_LABEL, alt);
+        if (iErr)
+        {
+          #ifdef TINYPICO
+          // Turn on error LED if on TinyPICO
+          g_tp.DotStar_SetPixelColor(LED_COLOR_RED);
+          #endif
+          #ifdef SERIAL_DEBUGMODE
+          DEBUG_SERIAL.printf("Error %d adding Elevation field\n", iErr);
+          #endif
+          waitForever();
+        }
+      }
+
       // Now we format our data in a format suitable to be submitted as a Note field
       // of an Algorand payment transaction. This way, our data will be written in the blockchain
       // The Note field of an Algorand transaction is quite short and there is some format overhead
@@ -285,16 +341,64 @@ void waitForever()
 }
 
 
+#ifndef FAKE_TPH_SENSOR
+void initializeBME280()
+{
+  Bme280Settings customBmeSettings = Bme280Settings::weatherMonitoring();
+  customBmeSettings.temperatureOversampling = Bme280Oversampling::X4;
+  customBmeSettings.pressureOversampling = Bme280Oversampling::X2;
+  customBmeSettings.humidityOversampling = Bme280Oversampling::X4;
+  customBmeSettings.filter = Bme280Filter::X4;
+  Wire.begin(SDA_PIN, SCL_PIN);  
+  g_BMEsensor.begin(Bme280TwoWireAddress::Primary);
+  g_BMEsensor.setSettings(customBmeSettings);
+}
+#endif    
+
+
+int readPosition(float* lat_deg, float* lon_deg, int16_t* alt_m)
+{
+  #if defined(POS_LAT_DEG) && defined(POS_LON_DEG) && defined(POS_ALT_M)
+  *lat_deg = POS_LAT_DEG;
+  *lon_deg = POS_LON_DEG;
+  *alt_m = POS_ALT_M;
+
+  return 0; // OK
+  #endif
+
+  // Position not specified (it is optional after all)
+  return 1;
+}
+
+
+// User may adapt this demo function to collect data
 int readSensors(float* temperature_C, uint8_t* relhum_Pct, uint16_t* pressure_mbar)
 {
-  #ifdef FAKE_SENSOR
-  *temperature_C = FAKE_T_C;  // Dummy values assigned in user_config.h
+  uint8_t bmeChipID = 0;
+
+  #ifdef FAKE_TPH_SENSOR
+  *temperature_C = FAKE_T_C;  // Dummy values
   *relhum_Pct = FAKE_H_PCT;
   *pressure_mbar = FAKE_P_MBAR;
   #else
+  bmeChipID = g_BMEsensor.getChipId();
+  if (bmeChipID == 0)
+  { // BME280 not connected or not working
+    return 1;
+  }
+  // Forced mode has to be specified every time we read data. We play safe and re-apply all settings
+  Bme280Settings customBmeSettings = Bme280Settings::weatherMonitoring();
+  customBmeSettings.temperatureOversampling = Bme280Oversampling::X4;
+  customBmeSettings.pressureOversampling = Bme280Oversampling::X2;
+  customBmeSettings.humidityOversampling = Bme280Oversampling::X4;
+  customBmeSettings.filter = Bme280Filter::X4;
+  g_BMEsensor.setSettings(customBmeSettings);
+  delay(100);
   *temperature_C = g_BMEsensor.getTemperature();  
   *pressure_mbar = (uint16_t) (0.01f * g_BMEsensor.getPressure());
   *relhum_Pct = (uint8_t)(g_BMEsensor.getHumidity() + 0.5f);  // Round to largest int (H is always > 0)
+  if (*pressure_mbar == 0)  // Sensor not working
+    return 1;
   #endif
 
   return 0;
