@@ -7,7 +7,7 @@
 // requires HTTPClient (ESP32)
 // requires Base64 by Densaugeo https://github.com/Densaugeo/base64_arduino
 
-// v20231205-1
+// v20240415-1
 
 // TODO:
 // API endpoint URL setter (AlgoNode may have to be replaced at some point)
@@ -201,28 +201,28 @@ class AlgoIoT
   // "label" not null and 31 chars max
 
   // Return: error code (0 = OK)
-  int dataAddInt8Field(char* label, const int8_t value);
+  int dataAddInt8Field(const char* label, const int8_t value);
 
   // Return: error code (0 = OK)
-  int dataAddUInt8Field(char* label, const uint8_t value);
+  int dataAddUInt8Field(const char* label, const uint8_t value);
 
   // Return: error code (0 = OK)
-  int dataAddInt16Field(char* label, const int16_t value);
+  int dataAddInt16Field(const char* label, const int16_t value);
 
   // Return: error code (0 = OK)
-  int dataAddUInt16Field(char* label, const uint16_t value);
+  int dataAddUInt16Field(const char* label, const uint16_t value);
 
   // Return: error code (0 = OK)
-  int dataAddInt32Field(char* label, const int32_t value);
+  int dataAddInt32Field(const char* label, const int32_t value);
 
   // Return: error code (0 = OK)
-  int dataAddUInt32Field(char* label, const uint32_t value);
+  int dataAddUInt32Field(const char* label, const uint32_t value);
 
   // Return: error code (0 = OK)
-  int dataAddFloatField(char* label, const float value);
+  int dataAddFloatField(const char* label, const float value);
 
   // Max 31 chars
-  int dataAddShortStringField(char* label, char* shortCString);
+  int dataAddShortStringField(const char* label, char* shortCString);
 
   // Submit transaction to Algorand network
   // Return: error code (0 = OK)

@@ -2054,4 +2054,4 @@ const char* BIP39_EN_Wordlist[BIP39_EN_WORDS_NUM] = {
             "zoo"
 };
 
-#endif _BIP39ENWORDS_H
+#endif // _BIP39ENWORDS_H
