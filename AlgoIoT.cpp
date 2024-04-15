@@ -1,5 +1,5 @@
 // algoiot.cpp
-// v20231205-1
+// v20240415-1
 
 // Work in progress	
 // TODO:
@@ -34,7 +34,7 @@
 #include "bip39enwords.h" // BIP39 english words to convert Algorand private key from mnemonics
 #include "algoiot.h"
 
-// #define LIB_DEBUGMODE
+#define LIB_DEBUGMODE
 #define DEBUG_SERIAL Serial
 
 
@@ -154,7 +154,7 @@ const char* AlgoIoT::getTransactionID()
 // Public methods to add values to be written in the blockchain
 // Strongly typed; this helps towards adding ARC-2/MessagePack in the future
 
-int AlgoIoT::dataAddInt8Field(char* label, const int8_t value)
+int AlgoIoT::dataAddInt8Field(const char* label, const int8_t value)
 {
   int len = 0;
 
@@ -183,7 +183,7 @@ int AlgoIoT::dataAddInt8Field(char* label, const int8_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddUInt8Field(char* label, const uint8_t value)
+int AlgoIoT::dataAddUInt8Field(const char* label, const uint8_t value)
 {
   int len = 0;
 
@@ -212,7 +212,7 @@ int AlgoIoT::dataAddUInt8Field(char* label, const uint8_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddInt16Field(char* label, const int16_t value)
+int AlgoIoT::dataAddInt16Field(const char* label, const int16_t value)
 {
   int len = 0;
 
@@ -241,7 +241,7 @@ int AlgoIoT::dataAddInt16Field(char* label, const int16_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddUInt16Field(char* label, const uint16_t value)
+int AlgoIoT::dataAddUInt16Field(const char* label, const uint16_t value)
 {
   int len = 0;
 
@@ -270,7 +270,7 @@ int AlgoIoT::dataAddUInt16Field(char* label, const uint16_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddInt32Field(char* label, const int32_t value)
+int AlgoIoT::dataAddInt32Field(const char* label, const int32_t value)
 {
   int len = 0;
 
@@ -299,7 +299,7 @@ int AlgoIoT::dataAddInt32Field(char* label, const int32_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddUInt32Field(char* label, const uint32_t value)
+int AlgoIoT::dataAddUInt32Field(const char* label, const uint32_t value)
 {
   int len = 0;
 
@@ -328,7 +328,7 @@ int AlgoIoT::dataAddUInt32Field(char* label, const uint32_t value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddFloatField(char* label, const float value)
+int AlgoIoT::dataAddFloatField(const char* label, const float value)
 { 
   int len = 0;
 
@@ -357,7 +357,7 @@ int AlgoIoT::dataAddFloatField(char* label, const float value)
   return ALGOIOT_NO_ERROR;
 }
 
-int AlgoIoT::dataAddShortStringField(char* label, char* shortCString)
+int AlgoIoT::dataAddShortStringField(const char* label, char* shortCString)
 {
   int len = 0;
 
@@ -430,7 +430,7 @@ int AlgoIoT::submitTransactionToAlgorand()
     #ifdef LIB_DEBUGMODE
     DEBUG_SERIAL.println("\n Error initializing transaction MessagePack\n");
     #endif
-    return NULL;
+    return ALGOIOT_MESSAGEPACK_ERROR;
   }  
   iErr = prepareTransactionMessagePack(msgPackTx, fv, fee, PAYMENT_AMOUNT_MICROALGOS, notes, (uint16_t)notesLen);
   if (iErr)
