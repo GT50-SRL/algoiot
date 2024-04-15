@@ -457,7 +457,7 @@ int AlgoIoT::submitTransactionToAlgorand()
   DEBUG_SERIAL.println("\nReady to submit transaction to Algorand network");
   DEBUG_SERIAL.println();
   #endif
-  iErr = submitTransaction(msgPackTx, transactionID); // Returns HTTP code
+  iErr = submitTransaction(msgPackTx); // Returns HTTP code
   if (iErr != 200)  // 200 = HTTP OK
   { // Something went wrong
     return ALGOIOT_TRANSACTION_ERROR;
@@ -465,9 +465,8 @@ int AlgoIoT::submitTransactionToAlgorand()
   // OK: our transaction, carrying sensor data in the Note field, 
   // was successfully submitted to the Algorand blockchain
   #ifdef LIB_DEBUGMODE
-  DEBUG_SERIAL.print("\t*** Algorand transaction successfully submitted with ID=");
-  DEBUG_SERIAL.print(transactionID);
-  DEBUG_SERIAL.println(" ***\n");
+  DEBUG_SERIAL.print("\t Transaction successfully submitted with ID=");
+  DEBUG_SERIAL.println(getTransactionID());
   #endif
   
   return ALGOIOT_NO_ERROR;
@@ -1165,7 +1164,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
 // Last method to be called, after all the others
 // Returns http response code (200 = OK) or AlgoIoT error code
 // TODO: On error codes 5xx (server error), maybe we should retry after 5s?
-int AlgoIoT::submitTransaction(msgPack msgPackTx, char* transactionID)
+int AlgoIoT::submitTransaction(msgPack msgPackTx)
 {
   String httpRequest = m_httpBaseURL + POST_TRANSACTION;
           
