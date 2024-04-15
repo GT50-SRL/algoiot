@@ -165,7 +165,7 @@ class AlgoIoT
   // 6. Submits transaction to algod
   // Last method to be called, after all the others
   // Returns HTTP response code (200 = OK)
-  int submitTransaction(msgPack msgPackTx, char* transactionID); 
+  int submitTransaction(msgPack msgPackTx); 
 
 
   public:
