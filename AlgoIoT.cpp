@@ -1,5 +1,5 @@
 // algoiot.cpp
-// v20240415-1
+// v20240424-1
 
 // Work in progress	
 // TODO:
@@ -32,7 +32,7 @@
 #include <Ed25519.h>
 #include "base32decode.h" // Base32 decoding for Algorand addresses
 #include "bip39enwords.h" // BIP39 english words to convert Algorand private key from mnemonics
-#include "algoiot.h"
+#include "AlgoIoT.h"
 
 #define LIB_DEBUGMODE
 #define DEBUG_SERIAL Serial
