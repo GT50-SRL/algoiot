@@ -1046,10 +1046,10 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
 
 
 
-// Obtains Ed25519 m_signature of g_MessagePack, adding "TX" prefix; fills m_signature
+// Obtains Ed25519 signature of passed MessagePack, adding "TX" prefix; fills "signature" return buffer
 // To be called AFTER convertToMessagePack()
 // Returns error code (0 = OK)
-// Caller passes a 64-byte array in "m_signature"
+// Caller passes a 64-byte array in "signature", to be filled
 int AlgoIoT::signMessagePackAddingPrefix(msgPack msgPackTx, uint8_t signature[ALGORAND_SIG_BYTES])
 {
   uint8_t* payloadPointer = NULL;
