@@ -1,5 +1,6 @@
 // algoiot.cpp
 // v20240415-1
+// Comments updated 20250905
 
 // Work in progress	
 // TODO:
@@ -1077,7 +1078,7 @@ int AlgoIoT::signMessagePackAddingPrefix(msgPack msgPackTx, uint8_t signature[AL
 }
 
 
-// Add signature to MessagePack. We reserved a blank space header
+// Add signature to MessagePack. We reserved a blank space header for this purpose
 // To be called AFTER signMessagePackAddingPrefix()
 // Returns error code (0 = OK)
 int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signature[ALGORAND_SIG_BYTES])
@@ -1100,7 +1101,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   }
   */
 
-  // We reset internal msgpack pointer, since we start from the beginning of the messagepack (filling the blank space)
+  // We reset internal msgpack pointer, since we now start from the beginning of the messagepack (filling the blank space)
   iErr = msgPackModifyCurrentPosition(mPack, 0);
   if (iErr)
   {
