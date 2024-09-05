@@ -388,6 +388,7 @@ int AlgoIoT::dataAddShortStringField(const char* label, char* shortCString)
 
 // Submit transaction to Algorand network
 // Return: error code (0 = OK)
+// We have the Note field ready, in ARC-2 JSON format
 int AlgoIoT::submitTransactionToAlgorand()
 {
   uint32_t fv = 0;
@@ -401,7 +402,7 @@ int AlgoIoT::submitTransactionToAlgorand()
 
   
   // Add preamble to ARC-2 note field
-  // Write app name and format specifier for ARC-2 (we use JSON)
+  // Write app name and format specifier for ARC-2 (we use the JSON flavour of ARC-2)
   memcpy((void*)&(notes[0]), (void*)m_appName, strlen(m_appName));
   m_noteOffset = strlen(m_appName);
   notes[m_noteOffset++] = ':';
