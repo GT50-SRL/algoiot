@@ -109,7 +109,7 @@ int msgpackAddShortMap(msgPack mPack, const uint8_t nFields)
     return MPK_ERR_BUFFER_TOO_SHORT;
   }
 
-  // Our map will max 15 fields, so we can use a FixMap (https://github.com/msgpack/msgpack/blob/master/spec.md#map-format-family)
+  // Our map will contain max 15 fields, so we can use a FixMap (https://github.com/msgpack/msgpack/blob/master/spec.md#map-format-family)
   // FixMap specifier = 1000xxxx where xxxx are 4 bits keeping the number of fields
   // So for example with N = 9 -> xxxx = 1001 -> specifier = 10001001 = 0x89 = 137
   specifier = 128 + nFields; // 10000000 + 4-bit totalFields
