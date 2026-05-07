@@ -2,12 +2,12 @@
 // header for AlgoIoT library
 
 // requires "minmpk" MessagePack library (included)
-// requires ArduinoJSON by Benoit Blanchon
+// requires ArduinoJSON v6.x by Benoit Blanchon (not compatible with 7+)
 // requires Crypto library
 // requires HTTPClient (ESP32)
 // requires Base64 by Densaugeo https://github.com/Densaugeo/base64_arduino
 
-// v20240415-1
+// v20260506-1
 
 // TODO:
 // API endpoint URL setter (AlgoNode may have to be replaced at some point)
@@ -222,6 +222,12 @@ class AlgoIoT
 
   // Max 31 chars
   int dataAddShortStringField(const char* label, char* shortCString);
+
+  // Max 990 chars, but keep in mind that Note field can only accept up to 1000 bytes *in total*
+  int dataAddStringField(const char* label, char* cString);
+
+  // Max 990 chars, but keep in mind that Note field can only accept up to 1000 bytes *in total*
+  int dataAddBinaryField(const char* label, uint8_t* buffer, const uint16_t bufferlen);
 
   // Submit transaction to Algorand network
   // Return: error code (0 = OK)
