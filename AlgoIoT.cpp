@@ -1,6 +1,5 @@
 // algoiot.cpp
-// v20240424-1
-// Comments updated 20250905
+// v20260506-1
 
 // Work in progress	
 // TODO:
@@ -387,9 +386,70 @@ int AlgoIoT::dataAddShortStringField(const char* label, char* shortCString)
   return ALGOIOT_NO_ERROR;
 }
 
+int AlgoIoT::dataAddStringField(const char* label, char* cString)
+{
+  int len = 0;
+
+  if ( (label == NULL)||(cString == NULL) )
+  {
+    return ALGOIOT_NULL_POINTER_ERROR;
+  }
+  if ( (strlen(label) > NOTE_LABEL_MAX_LEN)||(strlen(cString) > 990)||(strlen(cString) + strlen(label) >= ALGORAND_MAX_NOTES_SIZE) )
+  {
+    return ALGOIOT_BAD_PARAM;
+  }
+
+  m_noteJDoc[label] = cString;
+  
+  // It is not trivial to anticipate how many chars we are going to add,
+  // so we check JSON length after the fact
+  len = m_noteOffset + measureJson(m_noteJDoc);
+  if (len >= ALGORAND_MAX_NOTES_SIZE)
+  {
+    return ALGOIOT_DATA_STRUCTURE_TOO_LONG;
+  }
+
+  // Update note len
+  m_noteLen = len;
+
+  return ALGOIOT_NO_ERROR;
+}
+
+int AlgoIoT::dataAddBinaryField(const char* label, uint8_t* buffer, const uint16_t bufferlen)
+{
+  int len = 0;
+
+  if ( (label == NULL)||(buffer == NULL) )
+  {
+    return ALGOIOT_NULL_POINTER_ERROR;
+  }
+  if ( (strlen(label) > NOTE_LABEL_MAX_LEN)||(bufferlen > 990)||(bufferlen + strlen(label) >= ALGORAND_MAX_NOTES_SIZE) )
+  {
+    return ALGOIOT_BAD_PARAM;
+  }
+
+  // From 6.21, JsonString accepts "binary" strings containing NULLs
+  // https://github.com/bblanchon/ArduinoJson/issues/1765#issuecomment-1145938713
+  // We don't use "sizeof()" as in the example above, because it only works with static arrays
+  // like buffer[N], and we may have malloc'd buffers here (depends on the caller)
+  m_noteJDoc[label] = JsonString((const char*)buffer, bufferlen); 
+  
+  // It is not trivial to anticipate how many chars we are going to add,
+  // so we check JSON length after the fact
+  len = m_noteOffset + measureJson(m_noteJDoc);
+  if (len >= ALGORAND_MAX_NOTES_SIZE)
+  {
+    return ALGOIOT_DATA_STRUCTURE_TOO_LONG;
+  }
+
+  // Update note len
+  m_noteLen = len;
+
+  return ALGOIOT_NO_ERROR;
+}
+
 // Submit transaction to Algorand network
 // Return: error code (0 = OK)
-// We have the Note field ready, in ARC-2 JSON format
 int AlgoIoT::submitTransactionToAlgorand()
 {
   uint32_t fv = 0;
@@ -403,7 +463,7 @@ int AlgoIoT::submitTransactionToAlgorand()
 
   
   // Add preamble to ARC-2 note field
-  // Write app name and format specifier for ARC-2 (we use the JSON flavour of ARC-2)
+  // Write app name and format specifier for ARC-2 (we use JSON)
   memcpy((void*)&(notes[0]), (void*)m_appName, strlen(m_appName));
   m_noteOffset = strlen(m_appName);
   notes[m_noteOffset++] = ':';
@@ -1047,10 +1107,10 @@ int AlgoIoT::prepareTransactionMessagePack(msgPack msgPackTx,
 
 
 
-// Obtains Ed25519 signature of passed MessagePack, adding "TX" prefix; fills "signature" return buffer
+// Obtains Ed25519 m_signature of g_MessagePack, adding "TX" prefix; fills m_signature
 // To be called AFTER convertToMessagePack()
 // Returns error code (0 = OK)
-// Caller passes a 64-byte array in "signature", to be filled
+// Caller passes a 64-byte array in "m_signature"
 int AlgoIoT::signMessagePackAddingPrefix(msgPack msgPackTx, uint8_t signature[ALGORAND_SIG_BYTES])
 {
   uint8_t* payloadPointer = NULL;
@@ -1078,7 +1138,7 @@ int AlgoIoT::signMessagePackAddingPrefix(msgPack msgPackTx, uint8_t signature[AL
 }
 
 
-// Add signature to MessagePack. We reserved a blank space header for this purpose
+// Add signature to MessagePack. We reserved a blank space header
 // To be called AFTER signMessagePackAddingPrefix()
 // Returns error code (0 = OK)
 int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signature[ALGORAND_SIG_BYTES])
@@ -1101,7 +1161,7 @@ int AlgoIoT::createSignedBinaryTransaction(msgPack mPack, const uint8_t signatur
   }
   */
 
-  // We reset internal msgpack pointer, since we now start from the beginning of the messagepack (filling the blank space)
+  // We reset internal msgpack pointer, since we start from the beginning of the messagepack (filling the blank space)
   iErr = msgPackModifyCurrentPosition(mPack, 0);
   if (iErr)
   {
